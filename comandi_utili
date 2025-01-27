@@ -1,0 +1,14 @@
+ PER AVVIARE VENV:
+ venv\Scripts\activate
+
+ PER DISATTIVARE VENV:
+ deactivate
+ 
+ PER IMPORTARE LE DIPENDENDE NEL FILE REQUIREMENT:
+ pip freeze > requirements.txt
+
+ PER INSTALLARE LE DIPENDENZE DA REQUIREMENT:
+ pip install -r requirements.txt
+
+ PER ATTIVARE SERVER FLASK
+ flask run
