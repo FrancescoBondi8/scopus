@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ricerca Scopus</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        form { margin-bottom: 20px; }
+        input, button { margin: 5px 0; padding: 10px; width: 100%; max-width: 400px; }
+        button { cursor: pointer; background-color: #007bff; color: white; border: none; }
+        button:hover { background-color: #0056b3; }
+        ul { list-style: none; padding: 0; }
+        li { margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Ricerca Scopus</h1>
+    <form id="search-form">
+        <input type="text" id="firstname" name="firstname" placeholder="Nome" required>
+        <input type="text" id="lastname" name="lastname" placeholder="Cognome" required>
+        <input type="text" id="university" name="university" placeholder="Università">
+        <input type="hidden" name="form_type" value="name_search">
+        <button type="submit">Cerca</button>
+    </form>
+
+    <form id="search-form-id">
+        <input type="text" id="id" name="id" placeholder="Author-ID">
+        <input type="hidden" name="form_type" value="id_search">
+        <button type="submit">Cerca</button>
+    </form>
+
+    <!-- Bottone per scaricare il PDF -->
+    <button id="download-pdf">Scarica PDF</button>
+
+    <h2>Risultati:</h2>
+    <ul id="results"></ul>
+
+    <script>
+        
+        let globalFirstName = "";
+        let globalLastName = "";
+        document.getElementById("search-form").addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            const firstname = document.getElementById("firstname").value;
+            const lastname = document.getElementById("lastname").value;
+            const university = document.getElementById("university").value;
+            const resultsList = document.getElementById("results");
+
+            globalFirstName = firstname;
+            globalLastName = lastname;
+            resultsList.innerHTML = "Caricamento...";
+
+            try {
+                // Invia la richiesta al backend
+                const response = await fetch("/search", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `firstname=${encodeURIComponent(firstname)}&lastname=${encodeURIComponent(lastname)}&university=${encodeURIComponent(university)}&form_type=name_search`
+                });
+
+                const results = await response.json();
+                resultsList.innerHTML = ""; // Svuota la lista prima di popolarla
+
+                if (results.error) {
+                    // Mostra l'errore restituito dal backend
+                    resultsList.innerHTML = `<li>${results.error}</li>`;
+                } else if (results.articles && results.articles.length > 0) {
+                    // Popola la lista con i dettagli degli articoli
+                    results.articles.forEach((article) => {
+                        const listItem = document.createElement("li");
+
+                        // grassetto autore interessato
+                        // Sostituisci i ";" con ", "
+                        const highlightedAuthors = article.authors
+                            .split(";") // Dividi gli autori usando ";" come separatore
+                            .map((author) => {
+                                // Dividi il formato "Cognome, Nome" e normalizza
+                                const [authorLastName, authorFirstName] = author.trim().split(",").map(a => a.trim());
+
+                                // Confronta con i valori cercati
+                                if (
+                                    (authorFirstName.toLowerCase() === firstname.toLowerCase() && authorLastName.toLowerCase() === lastname.toLowerCase()) || // Nome completo
+                                    (authorFirstName.toLowerCase().startsWith(firstname[0].toLowerCase()) && authorLastName.toLowerCase() === lastname.toLowerCase()) // Iniziale Nome
+                                ) {
+                                    // Nome cercato in grassetto e con separazione "Cognome Nome"
+                                    return `<strong>${authorLastName} ${authorFirstName}</strong>`;
+                                }
+
+                                // Ritorna l'autore con separazione "Cognome Nome"
+                                return `${authorLastName} ${authorFirstName}`;
+                            })
+                            .join(", "); // Unisci gli autori con ", "
+
+
+                        listItem.innerHTML = `
+                            <em>${highlightedAuthors}. </em>
+                            <it>${article.title}, </it>
+                            <em>${article.journal},</em>
+                            <em>Vol. ${article.volume},</em> , <em ${article.issue}</em>
+                            <em>p. ${article.pages},</em>
+                            <em>Year ${article.year}, </em>
+                            <em>Cited by: ${article.cited_by}</em>
+                        `;
+                        resultsList.appendChild(listItem);
+                    });
+                } else {
+                    // Nessun risultato trovato
+                    resultsList.innerHTML = "<li>Nessun articolo trovato.</li>";
+                }
+            } catch (error) {
+                console.error("Errore:", error);
+                resultsList.innerHTML = `<li>Si è verificato un errore durante la ricerca.</li>`;
+            }
+        });
+
+        document.getElementById("search-form-id").addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const id = document.getElementById("id").value; // Recupera l'ID autore
+        const resultsList = document.getElementById("results");
+        resultsList.innerHTML = "Caricamento...";
+
+        try {
+            // Invia la richiesta al backend
+            const response = await fetch("/search", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: `id=${encodeURIComponent(id)}&form_type=id_search`
+            });
+
+            const results = await response.json();
+            const firstname = results.first_name
+            const lastname = results.last_name
+            globalFirstName = firstname;
+            globalLastName = lastname;
+            resultsList.innerHTML = ""; // Svuota la lista prima di popolarla
+
+            if (results.error) {
+                // Mostra l'errore restituito dal backend
+                resultsList.innerHTML = `<li>${results.error}</li>`;
+            } else if (results.articles && results.articles.length > 0) {
+                    // Popola la lista con i dettagli degli articoli
+                    results.articles.forEach((article) => {
+                        const listItem = document.createElement("li");
+
+                        // grassetto autore interessato
+                        // Sostituisci i ";" con ", "
+                        const highlightedAuthors = article.authors
+                            .split(";") // Dividi gli autori usando ";" come separatore
+                            .map((author) => {
+                                // Dividi il formato "Cognome, Nome" e normalizza
+                                const [authorLastName, authorFirstName] = author.trim().split(",").map(a => a.trim());
+
+                                // Confronta con i valori cercati
+                                if (
+                                    (authorFirstName.toLowerCase() === firstname.toLowerCase() && authorLastName.toLowerCase() === lastname.toLowerCase()) || // Nome completo
+                                    (authorFirstName.toLowerCase().startsWith(firstname[0].toLowerCase()) && authorLastName.toLowerCase() === lastname.toLowerCase()) // Iniziale Nome
+                                ) {
+                                    // Nome cercato in grassetto e con separazione "Cognome Nome"
+                                    return `<strong>${authorLastName} ${authorFirstName}</strong>`;
+                                }
+
+                                // Ritorna l'autore con separazione "Cognome Nome"
+                                return `${authorLastName} ${authorFirstName}`;
+                            })
+                            .join(", "); // Unisci gli autori con ", "
+
+                            listItem.innerHTML = `
+                            <em>${highlightedAuthors}. </em>
+                            <it>${article.title}, </it>
+                            <em>${article.journal},</em>
+                            <em>Vol. ${article.volume},</em>
+                            <em>p. ${article.pages},</em>
+                            <em>Year ${article.year}, </em>
+                            <em>Cited by: ${article.cited_by}</em>
+                        `;
+                        resultsList.appendChild(listItem);
+                    });
+                } else {
+                    // Nessun risultato trovato
+                    resultsList.innerHTML = "<li>Nessun articolo trovato.</li>";
+                }
+            } catch (error) {
+                console.error("Errore:", error);
+                resultsList.innerHTML = `<li>Si è verificato un errore durante la ricerca.</li>`;
+            }
+        });
+
+        document.getElementById("download-pdf").addEventListener("click", () => {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            const margin = 15; // Margine sinistro e destro
+            const pageWidth = doc.internal.pageSize.width - margin; // Larghezza utilizzabile
+            const lineHeight = 8; // Altezza di ogni riga
+            const startYOffset = 20; // Offset verticale iniziale per nuove pagine
+            let yOffset = startYOffset; // Offset verticale corrente
+
+            const resultsList = document.getElementById("results");
+            const items = resultsList.getElementsByTagName("li");
+
+            // Nome e cognome dell'autore interessato
+            const firstname = globalFirstName.trim().toLowerCase();
+            const lastname = globalLastName.trim().toLowerCase();
+
+            // Regex per individuare sia "Nome Cognome" che "Cognome Nome"
+            const fullNameRegex = new RegExp(
+                `(${firstname}\\s*\\n?\\s*${lastname}|${lastname}\\s*\\n?\\s*${firstname}|${lastname}\\s*\\n?\\s*${firstname[0]}\\.)`,
+                "gi"
+            );
+
+            // Aggiungi il titolo al PDF
+            doc.setFontSize(16);
+            doc.text("Pubblicazioni trovate", margin, yOffset);
+            yOffset += 15;
+
+            doc.setFont("times", "normal");
+            doc.setFontSize(12);
+
+            for (let i = 0; i < items.length; i++) {
+                let articleText = items[i].textContent; // Testo completo dell'articolo
+
+                articleText = articleText.replace(/ș/g, 's') // Sostituisci caratteri speciali
+                    .replace(/−/g, '-') // Sostituisci caratteri speciali
+                    .replace(/λ/g, 'l') // Sostituisci caratteri speciali
+                    .replace(/\s*\n\s*/g, ' ') // Sostituisci ritorni a capo con spazi singoli
+                    .trim(); // Rimuove spazi iniziali e finali
+
+                const lines = doc.splitTextToSize(articleText, pageWidth - margin * 2); // Divide il testo in righe gestibili
+
+                console.log("Righe suddivise:", lines);
+                // Numero dell'articolo
+                const itemNumber = `${i + 1}.`;
+                const itemNumberWidth = doc.getTextWidth(itemNumber);
+                let xOffset = margin + itemNumberWidth;
+
+                // Verifica se c'è spazio per tutte le righe
+                if (yOffset + lineHeight * lines.length > doc.internal.pageSize.height - margin) {
+                    doc.addPage();
+                    yOffset = startYOffset; // Reset dell'offset verticale
+                }
+
+                // Stampa il numero dell'articolo
+                doc.text(itemNumber, xOffset, yOffset);
+                xOffset += itemNumberWidth + 2;
+
+                // Aggiungi ogni linea di testo
+                lines.forEach((line, index) => {
+                    let currentXOffset = xOffset;
+
+                    // Divide la riga in parti usando la regex
+                    const parts = line.split(fullNameRegex); // Divide la riga in parti: testo normale e corrispondenze
+                    // Verifica se la riga precedente finisce con il cognome e questa riga inizia con il nome
+
+                    // Stampa la parte
+                    parts.forEach((part) => {
+                        console.log(part);
+                        if (fullNameRegex.test(part)) {
+                            // Se è il nome completo, applica il grassetto
+                            doc.setFont("times", "bold");
+                        } else {
+                            // Altrimenti, font normale
+                            doc.setFont("times", "normal");
+                        }
+
+                        // Stampa la parte
+                        doc.text(part, currentXOffset, yOffset);
+                        currentXOffset += doc.getTextWidth(part + " ");
+                    });
+
+                    yOffset += lineHeight; // Incrementa l'offset verticale
+
+                    // Controlla se l'offset è oltre la pagina e aggiungi una nuova pagina se necessario
+                    if (yOffset > doc.internal.pageSize.height - margin) {
+                        doc.addPage();
+                        yOffset = startYOffset; // Reset dell'offset verticale
+                    }
+                });
+
+                // Spazio extra tra articoli
+                yOffset += 2;
+            }
+
+            // Salva il PDF
+            doc.save("risultati.pdf");
+        });
+
+</script>
+
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ricerca Scopus</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='stile.css') }}">
+</head>
+<body>
+    <h1>Ricerca Scopus</h1>
+    <form id="search-form">
+        <input type="text" id="firstname" name="firstname" placeholder="Nome" required>
+        <input type="text" id="lastname" name="lastname" placeholder="Cognome" required>
+        <input type="text" id="university" name="university" placeholder="Università">
+        <input type="hidden" name="form_type" value="name_search">
+        <button type="submit">Cerca</button>
+    </form>
+
+    <form id="search-form-id">
+        <input type="text" id="id" name="id" placeholder="Author-ID">
+        <input type="hidden" name="form_type" value="id_search">
+        <button type="submit">Cerca</button>
+    </form>
+
+    <!-- Bottone per scaricare il PDF -->
+    <button id="download-pdf">Scarica PDF</button>
+
+    <h2>Risultati:</h2>
+    <ul id="results"></ul>
+
+    <script>
+        
+        let globalFirstName = "";
+        let globalLastName = "";
+        document.getElementById("search-form").addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            const firstname = document.getElementById("firstname").value;
+            const lastname = document.getElementById("lastname").value;
+            const university = document.getElementById("university").value;
+            const resultsList = document.getElementById("results");
+
+            globalFirstName = firstname;
+            globalLastName = lastname;
+            resultsList.innerHTML = "Caricamento...";
+
+            try {
+                // Invia la richiesta al backend
+                const response = await fetch("/search", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `firstname=${encodeURIComponent(firstname)}&lastname=${encodeURIComponent(lastname)}&university=${encodeURIComponent(university)}&form_type=name_search`
+                });
+
+                const results = await response.json();
+                globalResults = results;
+                resultsList.innerHTML = ""; // Svuota la lista prima di popolarla
+
+                if (results.error) {
+                    // Mostra l'errore restituito dal backend
+                    resultsList.innerHTML = `<li>${results.error}</li>`;
+                } else if (results.articles && results.articles.length > 0) {
+                    // Popola la lista con i dettagli degli articoli
+                    results.articles.forEach((article) => {
+                        const listItem = document.createElement("li");
+
+                        // grassetto autore interessato
+                        // Sostituisci i ";" con ", "
+                        const highlightedAuthors = article.authors
+                            .split(";") // Dividi gli autori usando ";" come separatore
+                            .map((author) => {
+                                // Dividi il formato "Cognome, Nome" e normalizza
+                                const [authorLastName, authorFirstName] = author.trim().split(",").map(a => a.trim());
+
+                                // Confronta con i valori cercati
+                                if (
+                                    (authorFirstName.toLowerCase() === firstname.toLowerCase() && authorLastName.toLowerCase() === lastname.toLowerCase()) || // Nome completo
+                                    (authorFirstName.toLowerCase().startsWith(firstname[0].toLowerCase()) && authorLastName.toLowerCase() === lastname.toLowerCase()) // Iniziale Nome
+                                ) {
+                                    // Nome cercato in grassetto e con separazione "Cognome Nome"
+                                    return `<strong>${authorLastName} ${authorFirstName}</strong>`;
+                                }
+
+                                // Ritorna l'autore con separazione "Cognome Nome"
+                                return `${authorLastName} ${authorFirstName}`;
+                            })
+                            .join(", "); // Unisci gli autori con ", "
+
+
+                        listItem.innerHTML = `
+                            <em>${highlightedAuthors}. </em>
+                            <it>${article.title}, </it>
+                            <em>${article.journal},</em>
+                            <em>Vol. ${article.volume},</em> , <em ${article.issue}</em>
+                            <em>p. ${article.pages},</em>
+                            <em>Year ${article.year}, </em>
+                            <em>Cited by: ${article.cited_by}</em>
+                        `;
+                        resultsList.appendChild(listItem);
+                    });
+                } else {
+                    // Nessun risultato trovato
+                    resultsList.innerHTML = "<li>Nessun articolo trovato.</li>";
+                }
+            } catch (error) {
+                console.error("Errore:", error);
+                resultsList.innerHTML = `<li>Si è verificato un errore durante la ricerca.</li>`;
+            }
+        });
+
+        document.getElementById("search-form-id").addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const id = document.getElementById("id").value; // Recupera l'ID autore
+        const resultsList = document.getElementById("results");
+        resultsList.innerHTML = "Caricamento...";
+
+        try {
+            // Invia la richiesta al backend
+            const response = await fetch("/search", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: `id=${encodeURIComponent(id)}&form_type=id_search`
+            });
+
+            const results = await response.json();
+            const firstname = results.first_name
+            const lastname = results.last_name
+            globalFirstName = firstname;
+            globalLastName = lastname;
+            globalResults = results;
+            resultsList.innerHTML = ""; // Svuota la lista prima di popolarla
+
+            if (results.error) {
+                // Mostra l'errore restituito dal backend
+                resultsList.innerHTML = `<li>${results.error}</li>`;
+            } else if (results.articles && results.articles.length > 0) {
+                    // Popola la lista con i dettagli degli articoli
+                    results.articles.forEach((article) => {
+                        const listItem = document.createElement("li");
+
+                        // grassetto autore interessato
+                        // Sostituisci i ";" con ", "
+                        const highlightedAuthors = article.authors
+                            .split(";") // Dividi gli autori usando ";" come separatore
+                            .map((author) => {
+                                // Dividi il formato "Cognome, Nome" e normalizza
+                                const [authorLastName, authorFirstName] = author.trim().split(",").map(a => a.trim());
+
+                                // Confronta con i valori cercati
+                                if (
+                                    (authorFirstName.toLowerCase() === firstname.toLowerCase() && authorLastName.toLowerCase() === lastname.toLowerCase()) || // Nome completo
+                                    (authorFirstName.toLowerCase().startsWith(firstname[0].toLowerCase()) && authorLastName.toLowerCase() === lastname.toLowerCase()) // Iniziale Nome
+                                ) {
+                                    // Nome cercato in grassetto e con separazione "Cognome Nome"
+                                    return `<strong>${authorLastName} ${authorFirstName}</strong>`;
+                                }
+
+                                // Ritorna l'autore con separazione "Cognome Nome"
+                                return `${authorLastName} ${authorFirstName}`;
+                            })
+                            .join(", "); // Unisci gli autori con ", "
+
+                            listItem.innerHTML = `
+                            <em>${highlightedAuthors}* </em>
+                            <it>${article.title}, </it>
+                            <em>${article.journal},</em>
+                            <em>Vol. ${article.volume},</em>
+                            <em>p. ${article.pages},</em>
+                            <em>Year ${article.year}, </em>
+                            <em>Cited by: ${article.cited_by}</em>
+                        `;
+                        resultsList.appendChild(listItem);
+                    });
+                } else {
+                    // Nessun risultato trovato
+                    resultsList.innerHTML = "<li>Nessun articolo trovato.</li>";
+                }
+            } catch (error) {
+                console.error("Errore:", error);
+                resultsList.innerHTML = `<li>Si è verificato un errore durante la ricerca.</li>`;
+            }
+        });
+    
+         // Assegna l'evento al pulsante
+         document.getElementById("download-pdf").addEventListener("click", generaPDF);
+        
+        //funzioni utili alla generazione del pdf
+
+        function normalizeText(text) {
+            if (typeof text !== 'string') return text; // Verifica se 'text' è una stringa
+
+            return text
+            .replace(/ș/g, "s")  // Sostituisci "ș" con "s"
+            .replace(/ț/g, "t")  // Sostituisci "ț" con "t"
+            .replace(/−/g, "-")  // Sostituisci "−" con "-"
+            .replace(/λ/g, "l")  // Sostituisci "λ" con "l"
+            .replace(/ł/g, "l")  // Sostituisci "ł" con "l"
+            .replace(/ź/g, "z")  // Sostituisci "ź" con "z"
+            .replace(/ę/g, "e")  // Sostituisci "ę" con "e"
+            .replace(/ć/g, "c")  // Sostituisci "ć" con "c"
+            .replace(/ó/g, "o")  // Sostituisci "ó" con "o"
+            .replace(/ń/g, "n")  // Sostituisci "ń" con "n"
+            .replace(/ä/g, "a")  // Sostituisci "ä" con "a"
+            .replace(/ö/g, "o")  // Sostituisci "ö" con "o"
+            .replace(/ü/g, "u")  // Sostituisci "ü" con "u"
+            .replace(/ß/g, "ss") // Sostituisci "ß" con "ss"
+            .replace(/á/g, "a")  // Sostituisci "á" con "a"
+            .replace(/é/g, "e")  // Sostituisci "é" con "e"
+            .replace(/í/g, "i")  // Sostituisci "í" con "i"
+            .replace(/ó/g, "o")  // Sostituisci "ó" con "o"
+            .replace(/ú/g, "u")  // Sostituisci "ú" con "u"
+            .replace(/ñ/g, "n")  // Sostituisci "ñ" con "n"
+            .replace(/č/g, "c")  // Sostituisci "č" con "c"
+            .replace(/š/g, "s")  // Sostituisci "š" con "s"
+            .replace(/ž/g, "z")  // Sostituisci "ž" con "z"
+            .replace(/ř/g, "r")  // Sostituisci "ř" con "r"
+            .replace(/å/g, "a")  // Sostituisci "å" con "a"
+            .replace(/ø/g, "o")  // Sostituisci "ø" con "o"
+            .replace(/æ/g, "ae") // Sostituisci "æ" con "ae"
+            .replace(/œ/g, "oe") // Sostituisci "œ" con "oe"
+            .replace(/ð/g, "d")  // Sostituisci "ð" con "d"
+            .replace(/þ/g, "th") // Sostituisci "þ" con "th"
+            .replace(/ý/g, "y")  // Sostituisci "ý" con "y")
+            .replace(/ü/g, "u")  // Sostituisci "ü" con "u"
+            .replace(/ã/g, "a") // Sostituisci "ã" con "a"
+        }
+
+        // Funzione per parsare gli autori
+        function parseAuthors(authors) {
+            return authors.split(";").map((author) => {
+                const [cognome, nome] = author.trim().split(",").map((a) => normalizeText(a.trim())); // Normalizza ogni parte
+                return { nome, cognome };
+            });
+        }
+
+        // Funzione per generare il PDF
+        async function generaPDF() {
+            
+            // Autore da evidenziare
+            const { PDFDocument, rgb, StandardFonts } = PDFLib;
+
+            // Crea un nuovo documento PDF
+            const pdfDoc = await PDFDocument.create();
+
+            let page = pdfDoc.addPage();
+            const { width, height } = page.getSize();
+
+            const fontNormal = await pdfDoc.embedFont(StandardFonts.Helvetica);
+            const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+
+            let y = height - 50; // Posizione iniziale verticale
+            const margin = 50;  // Margine sinistro
+            const lineHeight = 12; // Spazio tra le linee
+
+            function drawTextWrapped(text, x, y, font, size, maxWidth) {
+                let currentLine = '';
+                const words = text.split(' '); // Dividi il testo in parole
+
+                for (let word of words) {
+                    const testLine = currentLine ? `${currentLine} ${word}` : word;
+                    const testWidth = font.widthOfTextAtSize(testLine, size);
+
+                    if (testWidth > maxWidth) {
+                        // Disegna la riga corrente e vai a capo
+                        page.drawText(currentLine, { x, y, font, size, color: rgb(0, 0, 0) });
+                        y -= lineHeight;
+                        currentLine = word;
+                    } else {
+                        currentLine = testLine;
+                    }
+                }
+
+                // Disegna l'ultima riga
+                if (currentLine) {
+                    page.drawText(currentLine, { x, y, font, size, color: rgb(0, 0, 0) });
+                    y -= lineHeight;
+                }
+
+                return y; // Restituisce la nuova posizione 'y'
+            
+                // Disegna l'ultima riga
+                if (currentLine) {
+                    page.drawText(currentLine, {
+                        x,
+                        y,
+                        font,
+                        size,
+                        color: rgb(0, 0, 0),
+                    });
+                    y -= lineHeight;
+                }
+
+                return y; // Restituisce la nuova posizione 'y' dopo aver disegnato il testo
+            }
+
+            // Funzione per aggiungere una nuova pagina
+            function addNewPageIfNeeded() {
+                if (y < 100) { // Se rimangono meno di 100px di spazio
+                    page = pdfDoc.addPage();
+                    y = height - 50; // Ripristina la posizione verticale
+                }
+            }
+
+            // Scrive gli articoli nell'elenco
+            const autoreInteressato = { nome: globalFirstName, cognome: globalLastName };
+            // Funzione per scrivere gli autori con font differenziato
+            function drawAuthorsWithNumber(index, authors, x, y, fontNormal, fontBold, size, maxWidth) {
+                let currentX = x;
+
+                // Disegna il numero della lista
+                const listNumber = `${index + 1}. `;
+                const numberWidth = fontNormal.widthOfTextAtSize(listNumber, size);
+
+                if (currentX + numberWidth > maxWidth) {
+                    currentX = x;
+                    y -= lineHeight;
+                }
+
+                // Controlla se serve una nuova pagina
+                if (y < 100) {
+                    page = pdfDoc.addPage();
+                    y = height - 50;
+                }
+
+                // Disegna il numero
+                page.drawText(listNumber, {
+                    x: currentX,
+                    y,
+                    font: fontNormal,
+                    size,
+                    color: rgb(0, 0, 0),
+                });
+
+                currentX += numberWidth; // Avanza la posizione corrente dopo il numero
+
+                // Disegna gli autori uno alla volta
+                authors.forEach(({ nome, cognome, isHighlighted }, index) => {
+                    const font = isHighlighted ? fontBold : fontNormal;
+                    const separator = index === authors.length - 1 ? '.' : ', ';
+                    const authorText = `${nome} ${cognome}${separator}`;
+                    const textWidth = font.widthOfTextAtSize(authorText, size);
+
+                    if (currentX + textWidth > maxWidth) {
+                        currentX = x;
+                        y -= lineHeight;
+                    }
+
+                    if (y < 100) {
+                        page = pdfDoc.addPage();
+                        y = height - 50;
+                    }
+
+                    page.drawText(authorText, {
+                        x: currentX,
+                        y,
+                        font,
+                        size,
+                        color: rgb(0, 0, 0),
+                    });
+
+                    currentX += textWidth;
+                });
+
+                y -= lineHeight; // Spazio extra dopo gli autori
+                return y;
+            }
+
+            globalResults.articles.forEach((articolo, index) => {
+                const parsedAuthors = parseAuthors(articolo.authors);
+
+                // Aggiungi una nuova pagina se necessario
+                addNewPageIfNeeded();
+
+                let currentX = margin; // Posizione orizzontale
+                let currentY = y; // Posizione verticale
+
+                // **1️⃣ Disegna il numero dell'articolo**
+                page.drawText(`${index + 1}. `, {
+                    x: currentX,
+                    y: currentY,
+                    font: fontNormal,
+                    size: 10,
+                    color: rgb(0, 0, 0),
+                });
+                currentX += fontNormal.widthOfTextAtSize(`${index + 1}. `, 10);
+
+                // **2️⃣ Disegna gli autori uno per uno**
+                parsedAuthors.forEach(({ nome, cognome }, i) => {
+                    const isHighlighted = nome.toLowerCase() === autoreInteressato.nome.toLowerCase() &&
+                                        cognome.toLowerCase() === autoreInteressato.cognome.toLowerCase();
+                    const font = isHighlighted ? fontBold : fontNormal;
+                    const authorText = `${cognome} ${nome}${i === parsedAuthors.length - 1 ? ". " : ", "}`;
+                    const textWidth = font.widthOfTextAtSize(authorText, 10);
+
+                    // Se lo spazio rimanente non basta, vai a capo
+                    if (currentX + textWidth > width - margin) {
+                        currentX = margin;
+                        currentY -= lineHeight;
+                    }
+
+                    page.drawText(authorText, {
+                        x: currentX,
+                        y: currentY,
+                        font: font,
+                        size: 10,
+                        color: rgb(0, 0, 0),
+                    });
+
+                    currentX += textWidth;
+                });
+
+                // **3️⃣ Aggiungi il resto delle informazioni**
+                currentY -= lineHeight;
+                y = drawTextWrapped(
+                    `${normalizeText(articolo.title)}, ${normalizeText(articolo.journal)}, Vol. ${articolo.volume}, p. ${articolo.pages}, Year ${articolo.year}, Cited by: ${articolo.cited_by}`,
+                    margin,
+                    currentY,
+                    fontNormal,
+                    10,
+                    width - 2 * margin
+                );
+
+                // Spazio extra tra articoli
+                y -= 10;
+            });
+        
+            // Esporta il PDF
+            const pdfBytes = await pdfDoc.save();
+
+            // Avvia il download del PDF
+            const blob = new Blob([pdfBytes], { type: "application/pdf" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "articoli.pdf";
+            link.click();
+        }
+
+        
+    </script>
+</body>
+</html>
