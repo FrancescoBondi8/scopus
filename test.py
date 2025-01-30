@@ -1,6 +1,7 @@
 import io
 import logging
 import os
+import pandas as pd
 from flask import Flask, render_template, request, jsonify, send_file
 import pybliometrics
 from pybliometrics.scopus import AuthorSearch, ScopusSearch, AbstractRetrieval,AuthorRetrieval
@@ -9,6 +10,8 @@ app = Flask(__name__)
 
 pybliometrics.scopus.init()
 
+CSV_FILE = "D:\SCOPUS\excel\JCR19972023.csv"
+df = pd.read_csv(CSV_FILE, dtype=str, sep=";", quotechar='"', encoding="utf-8")
 
 def find_author_articles(first_name, last_name, affiliation = None):
     try:
@@ -37,6 +40,8 @@ def find_author_articles(first_name, last_name, affiliation = None):
         # Estrai i dettagli degli articoli
         articles = []
         for result in document_search.results:
+            year = int(result.coverDate.split("-")[0]) - 1
+            quartile_scopus = find_quartile_scopus(result.issn,result.eIssn,year)
             articles.append({
                 "title": result.title,
                 "authors": result.author_names or "Autori non disponibili",
@@ -46,7 +51,8 @@ def find_author_articles(first_name, last_name, affiliation = None):
                 "pages": result.pageRange,
                 "doi": result.doi,
                 "year": result.coverDate.split("-")[0],
-                "cited_by": result.citedby_count
+                "cited_by": result.citedby_count,
+                "quartile_scopus": quartile_scopus
             })
         return {"articles": articles}
     except Exception as e:
@@ -70,6 +76,8 @@ def find_author_articles_by_id(author_id):
         # Estrai i dettagli degli articoli
         articles = []
         for result in document_search.results:
+            year = int(result.coverDate.split("-")[0]) - 1
+            quartile_scopus = find_quartile_scopus(result.issn,result.eIssn,year)
             articles.append({
                 "title": result.title,
                 "authors": result.author_names or "Autori non disponibili",
@@ -79,7 +87,8 @@ def find_author_articles_by_id(author_id):
                 "pages": result.pageRange,
                 "doi": result.doi,
                 "year": result.coverDate.split("-")[0],
-                "cited_by": result.citedby_count
+                "cited_by": result.citedby_count,
+                "quartile_scopus": quartile_scopus
             })
         # Restituisci nome, cognome e articoli
         return {
@@ -91,6 +100,18 @@ def find_author_articles_by_id(author_id):
         logging.error(f"An error occurred: {e}")
         return {"error": f"An internal error occurred: {e}"}
 
+#funzione per cercare i quartili nel documento csv
+def find_quartile_scopus(issn, eissn, year):
+    year = str(year)  # Assicura che l'anno sia una stringa
+
+    # 📌 Cerca nel DataFrame per ISSN o eISSN corrispondente e per l'anno
+    result = df[
+        ((df["ISSN"]== issn) | (df["eISSN"]== eissn)) & (df["year"] == year)
+    ]
+    
+    if not result.empty:
+        return result["JIF Quartile"].values[0]  # Ritorna il primo quartile trovato
+    return "N/D"  # Se non trova il quartile, ritorna "Non Disponibile"
 
 # Funzione PDF per la creazione del documento
 class PDF(FPDF):

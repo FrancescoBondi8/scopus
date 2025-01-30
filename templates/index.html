@@ -96,7 +96,8 @@
                             <em>Vol. ${article.volume},</em> , <em ${article.issue}</em>
                             <em>p. ${article.pages},</em>
                             <em>Year ${article.year}, </em>
-                            <em>Cited by: ${article.cited_by}</em>
+                            <em>Cited by: ${article.cited_by}</em>,
+                            <em>Journal Quartile Scopus: ${article.quartile_scopus}</em>.
                         `;
                         resultsList.appendChild(listItem);
                     });
@@ -170,7 +171,8 @@
                             <em>Vol. ${article.volume},</em>
                             <em>p. ${article.pages},</em>
                             <em>Year ${article.year}, </em>
-                            <em>Cited by: ${article.cited_by}</em>
+                            <em>Cited by: ${article.cited_by}</em>,
+                            <em>Journal Quartile Scopus: ${article.quartile_scopus}</em>.
                         `;
                         resultsList.appendChild(listItem);
                     });
@@ -416,7 +418,7 @@
                 // **3️⃣ Aggiungi il resto delle informazioni**
                 currentY -= lineHeight;
                 y = drawTextWrapped(
-                    `${normalizeText(articolo.title)}, ${normalizeText(articolo.journal)}, Vol. ${articolo.volume}, p. ${articolo.pages}, Year ${articolo.year}, Cited by: ${articolo.cited_by}`,
+                    `${normalizeText(articolo.title)}, ${normalizeText(articolo.journal)}, Vol. ${articolo.volume}, p. ${articolo.pages}, Year ${articolo.year}, Cited by: ${articolo.cited_by}, Journal Quartile Scopus: ${articolo.quartile_scopus}`,
                     margin,
                     currentY,
                     fontNormal,
