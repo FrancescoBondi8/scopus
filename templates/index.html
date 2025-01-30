@@ -228,6 +228,9 @@
             .replace(/ý/g, "y")  // Sostituisci "ý" con "y")
             .replace(/ü/g, "u")  // Sostituisci "ü" con "u"
             .replace(/ã/g, "a") // Sostituisci "ã" con "a"
+            .replace(/ż/g, "z")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^\x20-\x7EÀ-ÿ]/g, "");
         }
 
         // Funzione per parsare gli autori
@@ -250,8 +253,8 @@
             let page = pdfDoc.addPage();
             const { width, height } = page.getSize();
 
-            const fontNormal = await pdfDoc.embedFont(StandardFonts.Helvetica);
-            const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+            const fontNormal = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+            const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
 
 
             let y = height - 50; // Posizione iniziale verticale
@@ -380,7 +383,7 @@
                 let currentX = margin; // Posizione orizzontale
                 let currentY = y; // Posizione verticale
 
-                // **1️⃣ Disegna il numero dell'articolo**
+                // **1️ Disegna il numero dell'articolo**
                 page.drawText(`${index + 1}. `, {
                     x: currentX,
                     y: currentY,
@@ -390,10 +393,12 @@
                 });
                 currentX += fontNormal.widthOfTextAtSize(`${index + 1}. `, 10);
 
-                // **2️⃣ Disegna gli autori uno per uno**
+                // **2 Disegna gli autori uno per uno**
                 parsedAuthors.forEach(({ nome, cognome }, i) => {
-                    const isHighlighted = nome.toLowerCase() === autoreInteressato.nome.toLowerCase() &&
-                                        cognome.toLowerCase() === autoreInteressato.cognome.toLowerCase();
+                    const isHighlighted = (nome.toLowerCase() === autoreInteressato.nome.toLowerCase() &&
+                                        cognome.toLowerCase() === autoreInteressato.cognome.toLowerCase()) ||
+                                        (nome.toLowerCase() === autoreInteressato.nome.charAt(0).toLowerCase() + "." &&
+                                        cognome.toLowerCase() === autoreInteressato.cognome.toLowerCase())
                     const font = isHighlighted ? fontBold : fontNormal;
                     const authorText = `${cognome} ${nome}${i === parsedAuthors.length - 1 ? ". " : ", "}`;
                     const textWidth = font.widthOfTextAtSize(authorText, 10);
@@ -415,16 +420,47 @@
                     currentX += textWidth;
                 });
 
-                // **3️⃣ Aggiungi il resto delle informazioni**
-                currentY -= lineHeight;
-                y = drawTextWrapped(
-                    `${normalizeText(articolo.title)}, ${normalizeText(articolo.journal)}, Vol. ${articolo.volume}, p. ${articolo.pages}, Year ${articolo.year}, Cited by: ${articolo.cited_by}, Journal Quartile Scopus: ${articolo.quartile_scopus}`,
-                    margin,
-                    currentY,
-                    fontNormal,
-                    10,
-                    width - 2 * margin
-                );
+                
+                // **Aggiungi il resto delle informazioni sulla stessa riga se possibile**
+                let extraText = `${normalizeText(articolo.title)}, ${normalizeText(articolo.journal)}, Vol. ${articolo.volume}, p. ${articolo.pages}, Year ${articolo.year}, Cited by: ${articolo.cited_by}, Journal Quartile Scopus: ${articolo.quartile_scopus}`;
+
+                const maxAvailableWidth = width - margin - currentX; // Spazio rimanente sulla riga
+
+                let words = extraText.split(" ");
+                let currentLine = "";
+                let remainingText = "";
+
+                // Scrive parola per parola finché c'è spazio nella riga corrente
+                for (let word of words) {
+                    let testLine = currentLine ? `${currentLine} ${word}` : word;
+                    let testWidth = fontNormal.widthOfTextAtSize(testLine, 10);
+
+                    if (testWidth > maxAvailableWidth) {
+                        remainingText = words.slice(words.indexOf(word)).join(" "); // Il testo rimanente
+                        break;
+                    }
+
+                    currentLine = testLine;
+                }
+
+                // Scrive la prima parte del testo nella stessa riga
+                if (currentLine) {
+                    page.drawText(currentLine, {
+                        x: currentX,
+                        y: currentY,
+                        font: fontNormal,
+                        size: 10,
+                        color: rgb(0, 0, 0),
+                    });
+                }
+
+                // Se c'è ancora testo da scrivere, lo manda a capo e lo scrive con wrapping
+                if (remainingText) {
+                    currentY -= lineHeight;
+                    y = drawTextWrapped(remainingText, margin, currentY, fontNormal, 10, width - 2 * margin);
+                } else {
+                    y = currentY;
+                }
 
                 // Spazio extra tra articoli
                 y -= 10;
