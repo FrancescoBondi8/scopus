@@ -183,9 +183,9 @@
                 resultsList.innerHTML = `<li>Si è verificato un errore durante la ricerca.</li>`;
             }
         });
-
-        // Assegna l'evento al pulsante
-        document.getElementById("download-pdf").addEventListener("click", generaPDF);
+    
+         // Assegna l'evento al pulsante
+         document.getElementById("download-pdf").addEventListener("click", generaPDF);
         
         //funzioni utili alla generazione del pdf
 
@@ -247,22 +247,16 @@
 
             let page = pdfDoc.addPage();
             const { width, height } = page.getSize();
-            const fontNormalBytes = await fetch('/fonts/DejaVuSans.ttf').then(res => res.arrayBuffer());
-            const fontBoldBytes = await fetch('/fonts/DejaVuSans-Bold.ttf').then(res => res.arrayBuffer());
 
-            const fontNormal = await pdfDoc.embedFont(fontNormalBytes);
-            const fontBold = await pdfDoc.embedFont(fontBoldBytes);
+            const fontNormal = await pdfDoc.embedFont(StandardFonts.Helvetica);
+            const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
 
             let y = height - 50; // Posizione iniziale verticale
             const margin = 50;  // Margine sinistro
             const lineHeight = 12; // Spazio tra le linee
 
             function drawTextWrapped(text, x, y, font, size, maxWidth) {
-                if (isNaN(y)) {
-                    console.error("Invalid y value:", y); // Debugging output to check the value of y
-                    return y; // Don't proceed if y is invalid
-                }
-
                 let currentLine = '';
                 const words = text.split(' '); // Dividi il testo in parole
 
@@ -270,26 +264,24 @@
                     const testLine = currentLine ? `${currentLine} ${word}` : word;
                     const testWidth = font.widthOfTextAtSize(testLine, size);
 
-                    // Se la linea supera la larghezza massima, vai a capo
                     if (testWidth > maxWidth) {
-                        page.drawText(currentLine, {
-                            x,
-                            y,
-                            font,
-                            size,
-                            color: rgb(0, 0, 0),
-                        });
-                        y -= lineHeight; // Spazio per la nuova riga
-                        if (isNaN(y)) {
-                            console.error("Invalid y value after line break:", y); // Debugging output
-                            return y;
-                        }
-                        currentLine = word; // Inizia una nuova riga con la parola corrente
+                        // Disegna la riga corrente e vai a capo
+                        page.drawText(currentLine, { x, y, font, size, color: rgb(0, 0, 0) });
+                        y -= lineHeight;
+                        currentLine = word;
                     } else {
-                        currentLine = testLine; // Continua la linea corrente
+                        currentLine = testLine;
                     }
                 }
 
+                // Disegna l'ultima riga
+                if (currentLine) {
+                    page.drawText(currentLine, { x, y, font, size, color: rgb(0, 0, 0) });
+                    y -= lineHeight;
+                }
+
+                return y; // Restituisce la nuova posizione 'y'
+            
                 // Disegna l'ultima riga
                 if (currentLine) {
                     page.drawText(currentLine, {
@@ -307,9 +299,9 @@
 
             // Funzione per aggiungere una nuova pagina
             function addNewPageIfNeeded() {
-                if (y < 100) { // Controlla se ci sono almeno 100px di spazio rimanente sulla pagina
+                if (y < 100) { // Se rimangono meno di 100px di spazio
                     page = pdfDoc.addPage();
-                    y = height - 50; // Ripristina la posizione verticale per la nuova pagina
+                    y = height - 50; // Ripristina la posizione verticale
                 }
             }
 
@@ -383,34 +375,59 @@
                 // Aggiungi una nuova pagina se necessario
                 addNewPageIfNeeded();
 
-                // Disegna il numero e gli autori
-                y = drawAuthorsWithNumber(
-                    index, // Passa l'indice per il numero
-                    parsedAuthors.map(({ nome, cognome }) => ({
-                        nome,
-                        cognome,
-                        isHighlighted: nome === autoreInteressato.nome && cognome === autoreInteressato.cognome,
-                    })),
+                let currentX = margin; // Posizione orizzontale
+                let currentY = y; // Posizione verticale
+
+                // **1️⃣ Disegna il numero dell'articolo**
+                page.drawText(`${index + 1}. `, {
+                    x: currentX,
+                    y: currentY,
+                    font: fontNormal,
+                    size: 10,
+                    color: rgb(0, 0, 0),
+                });
+                currentX += fontNormal.widthOfTextAtSize(`${index + 1}. `, 10);
+
+                // **2️⃣ Disegna gli autori uno per uno**
+                parsedAuthors.forEach(({ nome, cognome }, i) => {
+                    const isHighlighted = nome.toLowerCase() === autoreInteressato.nome.toLowerCase() &&
+                                        cognome.toLowerCase() === autoreInteressato.cognome.toLowerCase();
+                    const font = isHighlighted ? fontBold : fontNormal;
+                    const authorText = `${cognome} ${nome}${i === parsedAuthors.length - 1 ? ". " : ", "}`;
+                    const textWidth = font.widthOfTextAtSize(authorText, 10);
+
+                    // Se lo spazio rimanente non basta, vai a capo
+                    if (currentX + textWidth > width - margin) {
+                        currentX = margin;
+                        currentY -= lineHeight;
+                    }
+
+                    page.drawText(authorText, {
+                        x: currentX,
+                        y: currentY,
+                        font: font,
+                        size: 10,
+                        color: rgb(0, 0, 0),
+                    });
+
+                    currentX += textWidth;
+                });
+
+                // **3️⃣ Aggiungi il resto delle informazioni**
+                currentY -= lineHeight;
+                y = drawTextWrapped(
+                    `${normalizeText(articolo.title)}, ${normalizeText(articolo.journal)}, Vol. ${articolo.volume}, p. ${articolo.pages}, Year ${articolo.year}, Cited by: ${articolo.cited_by}`,
                     margin,
-                    y,
+                    currentY,
                     fontNormal,
-                    fontBold,
                     10,
-                    width - margin
+                    width - 2 * margin
                 );
 
-                // Aggiungi una nuova pagina se necessario
-                addNewPageIfNeeded();
-
-                // Disegna il titolo e altre informazioni
-                const titleText = `${normalizeText(articolo.title)}, ${normalizeText(articolo.journal)}, Vol. ${articolo.volume}, p. ${articolo.pages}, Year ${articolo.year}, Cited by: ${articolo.cited_by}`;
-                y = drawTextWrapped(titleText, margin, y, fontNormal, 10, width - 2 * margin);
-
-                // Spazio extra tra gli articoli
-                y -= 20;
+                // Spazio extra tra articoli
+                y -= 10;
             });
         
-
             // Esporta il PDF
             const pdfBytes = await pdfDoc.save();
 
@@ -422,6 +439,7 @@
             link.click();
         }
 
+        
     </script>
 </body>
 </html>

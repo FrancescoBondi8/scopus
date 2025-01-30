@@ -10,7 +10,6 @@ app = Flask(__name__)
 pybliometrics.scopus.init()
 
 
-
 def find_author_articles(first_name, last_name, affiliation = None):
     try:
         # Step 1: Cerca l'autore
@@ -18,6 +17,7 @@ def find_author_articles(first_name, last_name, affiliation = None):
         if affiliation:
             query_parts.append(f"AFFIL({affiliation})")
         query = " AND ".join(query_parts)
+        print(f"Query inviata a Scopus: {query}")  # Debugging
         author_search = AuthorSearch(query)
 
         if not author_search.authors:
@@ -139,99 +139,5 @@ def search():
     else:
         return jsonify({"error": "Invalid form type"}), 400
     
-
-from fpdf import FPDF
-import io
-from flask import send_file
-
-from fpdf import FPDF
-import io
-from flask import send_file, jsonify, request
-import os
-import tempfile
-
-from fpdf import FPDF
-import io
-from flask import send_file, jsonify, request
-import os
-import tempfile
-
-@app.route('/generate_pdf', methods=['POST'])
-def generate_pdf():
-    try:
-        data = request.get_json()
-        firstname = data.get('firstname')
-        lastname = data.get('lastname')
-        results = data.get('results')
-
-        if not firstname or not lastname or not results:
-            return jsonify({'error': 'Dati incompleti'}), 400
-
-        # Creazione del PDF
-        pdf = FPDF()
-        pdf.add_page()
-
-        # Aggiungi un font Unicode per gestire i caratteri speciali
-        pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
-        pdf.set_font('DejaVu', '', 12)
-        pdf.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)  # Font grassetto
-
-        # Aggiungi il titolo
-        pdf.cell(200, 10, txt=f"Articoli per {firstname} {lastname}", ln=True, align="C")
-
-        # Itera sugli articoli
-        for article in results.get('articles', []):
-            authors = article.get('authors', '')
-            title = article.get('title', '')
-            journal = article.get('journal', '')
-            volume = article.get('volume', '')
-            issue = article.get('issue', '')
-            pages = article.get('pages', '')
-            year = article.get('year', '')
-            cited_by = article.get('cited_by', '')
-            
-            # Aggiungi il contenuto per gli autori, evidenziando l'autore ricercato
-            highlighted_authors = ''
-            for author in authors.split(';'):
-                author = author.strip()
-                author_firstname, author_lastname = author.split(",")[1].strip(), author.split(",")[0].strip()
-
-                if f"{firstname} {lastname}".lower() == f"{author_firstname} {author_lastname}".lower():
-                    # Cambia il font a grassetto per l'autore interessato
-                    pdf.set_font('DejaVu', 'B', 12)
-                    highlighted_authors += f"{author_lastname} {author_firstname}, "
-                    pdf.set_font('DejaVu', '', 12)
-                else:
-                    highlighted_authors += f"{author_lastname} {author_firstname}, "
-
-            # Rimuovi l'ultima virgola
-            highlighted_authors = highlighted_authors.rstrip(', ')
-
-            # Aggiungi il contenuto dell'articolo al PDF
-            pdf.multi_cell(0, 10, txt=f"{highlighted_authors}. {title}, {journal}, Vol. {volume}, Issue {issue}, p. {pages}, Year {year}, Cited by: {cited_by}")
-
-        # Salva il PDF in un file temporaneo
-        with tempfile.NamedTemporaryFile(delete=False) as temp_pdf:
-            temp_pdf_path = temp_pdf.name
-            pdf.output(temp_pdf_path)
-
-        # Leggi il contenuto del file temporaneo in memoria
-        with open(temp_pdf_path, 'rb') as f:
-            pdf_output = io.BytesIO(f.read())
-
-        # Elimina il file temporaneo
-        os.remove(temp_pdf_path)
-
-        # Restituisci il PDF come file
-        return send_file(pdf_output, as_attachment=True, download_name="risultati_articoli.pdf", mimetype="application/pdf")
-
-    except Exception as e:
-        print(f"Errore: {e}")
-        return jsonify({'error': 'Errore durante la generazione del PDF'}), 500
-
-
-
-
-
 if __name__ == "__main__":
     app.run(debug=True)

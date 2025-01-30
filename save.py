@@ -48,3 +48,10 @@ elements = [lista_numerata]
 doc.build(elements)
 
 print(f"PDF generato: {file_pdf}")
+
+
+
+                            <em>Cited by: ${article.cited_by}</em>,
+                            <em>Journal Quartile Scopus: ${article.quartile_scopus}</em>.
+
+Journal Quartile Scopus: ${articolo.quartile_scopus}
