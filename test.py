@@ -52,7 +52,9 @@ def find_author_articles(first_name, last_name, affiliation = None):
                 "doi": result.doi,
                 "year": result.coverDate.split("-")[0],
                 "cited_by": result.citedby_count,
-                "quartile_scopus": quartile_scopus
+                "quartile_scopus": quartile_scopus,
+                "issn": result.issn,
+                "eIssn": result.eIssn
             })
         return {"articles": articles}
     except Exception as e:

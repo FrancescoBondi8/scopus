@@ -1,8 +1,83 @@
-body { font-family: Arial, sans-serif; margin: 20px; }
-form { margin-bottom: 20px; }
-input, button { margin: 5px 0; padding: 10px; width: 100%; max-width: 400px; }
-button { cursor: pointer; background-color: #007bff; color: white; border: none; }
-button:hover { background-color: #0056b3; }
-ul { list-style: none; padding: 0; }
-li { margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+/* Permette alla pagina di avere una lunghezza dinamica */
+html, body {
+    min-height: 100vh;  /* Minimo 100% della viewport */
+    height: auto;       /* Permette alla pagina di allungarsi */
+    overflow-y: auto;   /* Abilita lo scroll verticale se necessario */
+    display: flex;
+    flex-direction: column;
+}
 
+/* Assicura che il container non abbia limiti di altezza */
+.container {
+    flex-grow: 1;
+    min-height: 100vh;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-bottom: 50px; /* Evita che l'ultimo contenuto venga tagliato */
+}
+
+/* Mantiene il titolo SEMPRE visibile */
+h1 {
+    display: block !important;
+    visibility: visible !important;
+    margin-bottom: 20px;
+    position: relative; /* Evita che venga spinto via */
+    z-index: 100;
+}
+
+/* Impedisce al titolo di essere spinto fuori */
+#title-container {
+    position: sticky;
+    top: 0;
+    background-color: #f8f9fa; /* Sfondo per evitare sovrapposizioni */
+    z-index: 1000; /* Mantiene il titolo sopra gli altri elementi */
+    padding: 10px 0;
+    text-align: center;
+}
+
+/* Mantiene il form visibile e separato dai risultati */
+#form-container {
+    position: relative; /* Evita che venga spinto via */
+    z-index: 10;
+    padding-bottom: 20px; /* Spazio sotto il form */
+}
+
+/* Assicura che i risultati siano sempre visibili senza comprimere il form */
+#results-container {
+    max-height: 500px;  /* Permette lo scroll solo ai risultati */
+    overflow-y: auto;   /* Scroll verticale solo per i risultati */
+    margin-top: 20px;   /* Separazione dal form */
+    padding: 10px;
+    border-radius: 5px;
+    background-color: #fff;
+    display: block !important; /* Forza la visualizzazione */
+}
+
+
+/* Forza il margine tra gli elementi della lista */
+#results li, .list-group-item {
+    display: block;  /* Assicura che ogni elemento sia in una nuova riga */
+    white-space: normal;
+    word-wrap: break-word;
+    padding: 15px;
+    margin-bottom: 15px !important; /* Forza lo spazio tra gli elementi */
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    background-color: #fff;
+}
+
+
+
+/* Effetto hover sui pulsanti */
+.btn:hover {
+    opacity: 0.9;
+}
+
+/* Migliora l’aspetto dei card */
+.card {
+    border-radius: 10px;
+    border: none;
+}
